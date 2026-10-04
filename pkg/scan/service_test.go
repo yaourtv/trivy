@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
+	"github.com/aquasecurity/trivy-db/pkg/metadata"
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/aquasecurity/trivy/internal/dbtest"
 	"github.com/aquasecurity/trivy/internal/testutil"
@@ -460,6 +461,72 @@ func TestService_generateArtifactID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := s.GenerateArtifactID(tt.artifactInfo)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLocalVersionInfo(t *testing.T) {
+	vulnDB := &metadata.Metadata{
+		Version:      2,
+		NextUpdate:   time.Date(2023, 7, 20, 18, 11, 37, 696263532, time.UTC),
+		UpdatedAt:    time.Date(2023, 7, 20, 12, 11, 37, 696263932, time.UTC),
+		DownloadedAt: time.Date(2023, 7, 25, 7, 1, 41, 239158000, time.UTC),
+	}
+	javaDB := &metadata.Metadata{
+		Version:      1,
+		NextUpdate:   time.Date(2023, 7, 28, 1, 3, 52, 169192565, time.UTC),
+		UpdatedAt:    time.Date(2023, 7, 25, 1, 3, 52, 169192765, time.UTC),
+		DownloadedAt: time.Date(2023, 7, 25, 9, 37, 48, 906152000, time.UTC),
+	}
+	checkBundle := &tTypes.BundleMetadata{
+		Digest:       "sha256:829832357626da2677955e3b427191212978ba20012b6eaa03229ca28569ae43",
+		DownloadedAt: time.Date(2023, 7, 23, 16, 40, 33, 122462000, time.UTC),
+	}
+
+	tests := []struct {
+		name    string
+		options tTypes.ScanOptions
+		want    tTypes.VersionInfo
+	}{
+		{
+			name: "standalone mode",
+			options: tTypes.ScanOptions{
+				CacheDir: "../version/testdata/testcache",
+			},
+			want: tTypes.VersionInfo{
+				Version:         "dev",
+				VulnerabilityDB: vulnDB,
+				JavaDB:          javaDB,
+				CheckBundle:     checkBundle,
+			},
+		},
+		{
+			name: "client mode excludes VulnerabilityDB",
+			options: tTypes.ScanOptions{
+				CacheDir:   "../version/testdata/testcache",
+				ClientMode: true,
+			},
+			want: tTypes.VersionInfo{
+				Version:     "dev",
+				JavaDB:      javaDB,
+				CheckBundle: checkBundle,
+			},
+		},
+		{
+			name: "empty cache",
+			options: tTypes.ScanOptions{
+				CacheDir: t.TempDir(),
+			},
+			want: tTypes.VersionInfo{
+				Version: "dev",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := scan.LocalVersionInfo(tt.options)
 			assert.Equal(t, tt.want, got)
 		})
 	}

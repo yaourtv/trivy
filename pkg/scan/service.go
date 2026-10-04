@@ -16,7 +16,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/report"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/uuid"
-	"github.com/aquasecurity/trivy/pkg/version/app"
+	"github.com/aquasecurity/trivy/pkg/version"
 )
 
 // Service is the main service that coordinates security scanning operations.
@@ -87,8 +87,8 @@ func (s Service) ScanArtifact(ctx context.Context, options types.ScanOptions) (t
 	r := types.Report{
 		SchemaVersion: report.SchemaVersion,
 		Trivy: types.TrivyInfo{
-			Version: app.Version(),
-			Server:  scanResponse.ServerInfo,
+			VersionInfo: localVersionInfo(options),
+			Server:      scanResponse.ServerInfo,
 		},
 		ReportID:     reportID.String(),
 		CreatedAt:    clock.Now(ctx),
@@ -183,4 +183,15 @@ func (s Service) generateArtifactID(artifactInfo artifact.Reference) string {
 		// Empty string for other types
 		return ""
 	}
+}
+
+// localVersionInfo returns the Trivy version and the metadata of the databases
+// stored in the local cache. In client/server mode, the vulnerability DB is
+// managed by the server and reported in TrivyInfo.Server instead.
+func localVersionInfo(options types.ScanOptions) types.VersionInfo {
+	var opts []version.VersionOption
+	if options.ClientMode {
+		opts = append(opts, version.Client())
+	}
+	return version.NewVersionInfo(options.CacheDir, opts...)
 }
